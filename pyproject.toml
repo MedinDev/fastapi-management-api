@@ -1,6 +1,7 @@
 [tool.poetry]
 name = "management-api"
 version = "1.0.0"
+package-mode = false
 description = "Production-ready REST API with JWT authentication, CRUD operations, and complete test coverage"
 authors = ["Your Name <your.email@example.com>"]
 

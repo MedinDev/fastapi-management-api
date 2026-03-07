@@ -17,7 +17,7 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.USER)
+    role = Column(Enum(UserRole, values_callable=lambda obj: [e.value for e in obj]), default=UserRole.USER)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     is_superuser = Column(Boolean, default=False)  # Kept for compatibility with existing code
