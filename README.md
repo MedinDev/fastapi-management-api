@@ -47,25 +47,25 @@ graph TD
 
     subgraph "FastAPI Backend"
         subgraph "Interface Layer"
-            Middleware[🛡️ Middleware\n(Auth, CORS, Rate Limit)]
-            Routers[🔀 Routers\n(/auth, /users, /products)]
-            Schemas[📝 Pydantic Schemas]
+            Middleware["🛡️ Middleware\n(Auth, CORS, Rate Limit)"]
+            Routers["🔀 Routers\n(/auth, /users, /products)"]
+            Schemas["📝 Pydantic Schemas"]
         end
 
         subgraph "Business Logic"
-            Services[⚙️ Services\n(Auth, User, Product)]
-            Tasks[Cw Background Tasks]
+            Services["⚙️ Services\n(Auth, User, Product)"]
+            Tasks["⏰ Background Tasks"]
         end
 
         subgraph "Data Access"
-            Repositories[🗄️ Repositories\n(CRUD Operations)]
-            Models[Dj SQLAlchemy Models]
+            Repositories["🗄️ Repositories\n(CRUD Operations)"]
+            Models["🗃️ SQLAlchemy Models"]
         end
     end
 
     subgraph "Persistence"
         Postgres[(🐘 PostgreSQL)]
-        Redis[(Lr Redis Cache)]
+        Redis[(⚡ Redis Cache)]
     end
 
     Client -->|HTTPS| Nginx
