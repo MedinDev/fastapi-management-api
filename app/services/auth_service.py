@@ -3,7 +3,7 @@ from sqlalchemy import select
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.user import UserCreate
 from app.core.security import security
 from app.repositories.user_repository import UserRepository
@@ -22,17 +22,13 @@ class AuthService:
         if existing_user:
             raise ValueError("Email already registered")
         
-        # Create new user
-        # Note: In the user's provided code, they create a User object manually.
-        # However, they pass hashed_password.
-        # The user provided code uses security.get_password_hash(user_in.password).
-        
         user = User(
             email=user_in.email,
             username=user_in.username,
             full_name=user_in.full_name,
             hashed_password=security.get_password_hash(user_in.password),
-            role=user_in.role
+            # Self-registration always creates a regular user; roles are granted by an admin
+            role=UserRole.USER
         )
         
         created_user = await self.user_repo.create(user)
@@ -55,8 +51,6 @@ class AuthService:
         """Update user's last login timestamp"""
         user = await self.user_repo.get_by_id(user_id)
         if user:
-            # Replaced datetime.utcnow() with timezone-aware alternative as per best practices
-            # But user provided datetime.utcnow(). I will use datetime.now(timezone.utc) to be safe and consistent with my previous fixes.
             user.last_login = datetime.now(timezone.utc)
             await self.db.commit()
     

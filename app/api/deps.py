@@ -5,6 +5,7 @@ from jose import jwt
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis import asyncio as aioredis
+from redis.exceptions import RedisError
 
 from app.core import security
 from app.core.config import settings
@@ -33,25 +34,20 @@ async def get_current_user(
     token: str = Depends(reusable_oauth2),
     redis_client: aioredis.Redis = Depends(get_redis)
 ) -> User:
-    # Check if token is blacklisted
+    # Reject tokens revoked by logout. Fail closed: if Redis is unreachable we
+    # can't tell whether the token was revoked, so don't accept it.
     try:
         is_blacklisted = await redis_client.get(f"blacklist:{token}")
-        if is_blacklisted:
-             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token is blacklisted",
-            )
-    except Exception as e:
-        # Log error but don't fail if redis is down? 
-        # Or fail secure?
-        # For now, let's fail secure if redis is required for blacklist.
-        # But for development/testing without redis, this is annoying.
-        # Let's assume redis is critical for security (logout).
-        # But if connection fails, it raises ConnectionError.
-        # Let's re-raise or handle.
-        # For now, let's let it bubble up or handle it.
-        # Actually, let's just proceed.
-        pass
+    except RedisError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service unavailable",
+        )
+    if is_blacklisted:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+        )
 
     try:
         payload = jwt.decode(

@@ -5,8 +5,6 @@ from app.models.user import User
 @pytest.mark.asyncio
 async def test_register_user(client: AsyncClient, db_session):
     """Test user registration"""
-    # Note: Using hardcoded path /api/v1 as per user request, 
-    # but in production code we often use settings.API_V1_STR
     response = await client.post(
         "/api/v1/auth/register",
         json={
@@ -23,6 +21,22 @@ async def test_register_user(client: AsyncClient, db_session):
     assert data["username"] == "newuser"
     assert "id" in data
     assert "hashed_password" not in data
+
+@pytest.mark.asyncio
+async def test_register_cannot_self_assign_admin(client: AsyncClient):
+    """Registration ignores a requested role and always creates a regular user"""
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "sneaky@example.com",
+            "username": "sneaky",
+            "full_name": "Sneaky User",
+            "password": "SecurePass123!",
+            "role": "admin"
+        }
+    )
+    assert response.status_code == 200
+    assert response.json()["role"] == "user"
 
 @pytest.mark.asyncio
 async def test_login_success(client: AsyncClient, test_user: User):
@@ -72,3 +86,7 @@ async def test_logout(client: AsyncClient, auth_headers: dict):
     )
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully logged out"
+
+    # The revoked token must no longer be accepted
+    response = await client.get("/api/v1/auth/me", headers=auth_headers)
+    assert response.status_code == 401

@@ -1,219 +1,139 @@
-# 🔐 Complete Management API with JWT Authentication
+# FastAPI Management API — Async REST API with JWT Auth, PostgreSQL & Redis
 
-A **production-grade REST API** demonstrating modern backend development practices with **FastAPI**, **PostgreSQL**, and **JWT authentication**. This project implements a complete management system with users, products, and tasks, showcasing security best practices, comprehensive testing, and Dockerized deployment.
+[![CI](https://github.com/MedinDev/fastapi-management-api/actions/workflows/ci.yml/badge.svg)](https://github.com/MedinDev/fastapi-management-api/actions/workflows/ci.yml)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## ✨ Key Features
+An async REST API for managing users, products and tasks, built with FastAPI, SQLAlchemy 2.0 (async), PostgreSQL and Redis. It implements JWT authentication with access and refresh tokens, server-side logout via a Redis token blacklist, role-based authorization, a layered routes → services → repositories architecture, and Alembic migrations. Everything runs with one `docker compose up`.
 
-- **🔒 Enterprise-grade Security**
-  - JWT access/refresh tokens with automatic rotation
-  - Role-based access control (Admin, Manager, User)
-  - Password hashing with bcrypt
-  - Rate limiting and brute-force protection
-  - Token blacklisting for logout
-  - SQL injection prevention via SQLAlchemy
+![Swagger UI](assets/swagger-ui.png)
 
-- **📊 Complete CRUD Operations**
-  - User management with profile updates
-  - Product inventory management
-  - Task assignment and tracking
-  - Advanced filtering, sorting, and pagination
-  - Soft delete and audit logging
+## Features
 
-- **🧪 Comprehensive Testing**
-  - 95%+ code coverage
-  - Unit tests for business logic
-  - Integration tests with test database
-  - E2E tests for critical workflows
-  - Performance/load testing scripts
+- **JWT authentication** — short-lived access tokens (30 min) and refresh tokens (7 days), HS256
+- **Real logout** — revoked tokens are stored in Redis until they expire, and every request checks them; if Redis is down, requests are rejected rather than trusted
+- **Argon2 password hashing** via passlib
+- **Role-based access** — `admin`, `manager` and `user` roles; admins see everything, other users only see resources they own or are assigned to
+- **CRUD** for users, products and tasks, with pagination (`skip` / `limit`)
+- **Dashboard endpoint** with per-user or global counts
+- **Async throughout** — asyncpg driver and SQLAlchemy 2.0 async sessions
+- **Migrations** with Alembic, and a seed script for sample data
+- **Interactive docs** — Swagger UI and ReDoc generated from the Pydantic schemas
 
-- **🚀 DevOps Ready**
-  - Docker and docker-compose for development
-  - Multi-stage production Dockerfile
-  - Database migrations with Alembic
-  - CI/CD with GitHub Actions
-  - Health checks and monitoring
-
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
-graph TD
-    subgraph "External"
-        Client[📱/💻 Client]
+flowchart LR
+    Client -->|HTTP + Bearer JWT| Routes
+
+    subgraph FastAPI
+        Routes["Routes<br/>app/api/v1/endpoints"] --> Deps["Auth dependency<br/>JWT + blacklist check"]
+        Routes --> Services["Services<br/>app/services"]
+        Services --> Repos["Repositories<br/>app/repositories"]
+        Repos --> Models["SQLAlchemy models"]
     end
 
-    subgraph "Infrastructure"
-        Nginx[🌐 Nginx Gateway]
-    end
-
-    subgraph "FastAPI Backend"
-        subgraph "Interface Layer"
-            Middleware["🛡️ Middleware\n(Auth, CORS, Rate Limit)"]
-            Routers["🔀 Routers\n(/auth, /users, /products)"]
-            Schemas["📝 Pydantic Schemas"]
-        end
-
-        subgraph "Business Logic"
-            Services["⚙️ Services\n(Auth, User, Product)"]
-            Tasks["⏰ Background Tasks"]
-        end
-
-        subgraph "Data Access"
-            Repositories["🗄️ Repositories\n(CRUD Operations)"]
-            Models["🗃️ SQLAlchemy Models"]
-        end
-    end
-
-    subgraph "Persistence"
-        Postgres[(🐘 PostgreSQL)]
-        Redis[(⚡ Redis Cache)]
-    end
-
-    Client -->|HTTPS| Nginx
-    Nginx -->|Proxy| Middleware
-    Middleware --> Routers
-    Routers -->|Validate| Schemas
-    Routers -->|Call| Services
-    Services -->|Use| Repositories
-    Services -->|Schedule| Tasks
-    Repositories -->|ORM| Models
-    Repositories -->|Query| Postgres
-    Services -->|Cache| Redis
-    Middleware -->|Rate Limit| Redis
+    Deps --> Redis[(Redis<br/>token blacklist)]
+    Models --> Postgres[(PostgreSQL)]
 ```
 
-## 📈 API Performance
+| Layer | Responsibility |
+| --- | --- |
+| `api/v1/endpoints` | HTTP routing, request validation, authorization checks |
+| `api/deps.py` | Current-user dependency: verifies the JWT and rejects revoked tokens |
+| `services` | Business logic (registration, authentication) |
+| `repositories` | Database access behind a generic async CRUD base class |
+| `models` / `schemas` | SQLAlchemy tables and Pydantic request/response models |
 
-| Endpoint | Avg Response Time | Throughput |
-|----------|-------------------|------------|
-| GET /api/v1/products | 45ms | 850 req/s |
-| POST /api/v1/users | 65ms | 620 req/s |
-| GET /api/v1/tasks?page=1 | 38ms | 920 req/s |
-| Auth endpoints | 25ms | 1100 req/s |
+## Quick start
 
-*Tested on: 4-core CPU, 8GB RAM, 100 concurrent connections*
-
-## 🔧 Tech Stack
-
-- **Framework**: FastAPI (Python 3.11+)
-- **Database**: PostgreSQL 15 + asyncpg
-- **ORM**: SQLAlchemy 2.0 (async/await)
-- **Migrations**: Alembic
-- **Auth**: JWT (python-jose) + bcrypt
-- **Cache**: Redis 7
-- **Validation**: Pydantic v2
-- **Testing**: pytest, pytest-asyncio, httpx
-- **Container**: Docker, docker-compose
-- **Documentation**: OpenAPI (Swagger UI, ReDoc)
-- **CI/CD**: GitHub Actions
-- **Monitoring**: Prometheus metrics endpoint
-
-## 🚀 Quick Start
+Requirements: Docker with Compose.
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/management-api.git
-cd management-api
-
-# Copy environment variables
+git clone https://github.com/MedinDev/fastapi-management-api.git
+cd fastapi-management-api
 cp .env.example .env
 
-# Start services with Docker
-docker-compose up -d
-
-# Run database migrations
-docker-compose exec api alembic upgrade head
-
-# Seed initial data
-docker-compose exec api python scripts/seed_data.py
-
-# Access API documentation
-open http://localhost:8000/docs
+docker compose up -d
+docker compose exec api alembic upgrade head
+docker compose exec api python scripts/seed_data.py
 ```
 
-## 📚 API Documentation (Swagger)
+| Service | URL |
+| --- | --- |
+| Swagger UI | http://localhost:8000/docs |
+| ReDoc | http://localhost:8000/redoc |
+| Health check | http://localhost:8000/health |
+| pgAdmin | http://localhost:5050 |
 
-Interactive API documentation is automatically generated:
+## API
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+All routes are under `/api/v1`. Everything except register, login and refresh requires `Authorization: Bearer <access_token>`.
 
-### Example Endpoints
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/auth/register` | Create an account |
+| `POST` | `/auth/login` | Get access + refresh tokens |
+| `POST` | `/auth/refresh` | Exchange a refresh token for new tokens |
+| `POST` | `/auth/logout` | Revoke the current access token |
+| `GET` | `/auth/me` | Current user |
+| `GET` `POST` | `/users/` | List / create users |
+| `GET` `PUT` | `/users/me` | Read / update own profile |
+| `GET` `PUT` | `/users/{id}` | Read / update a user |
+| `GET` `POST` | `/products/` | List / create products |
+| `GET` `PUT` `DELETE` | `/products/{id}` | Read / update / delete a product |
+| `GET` `POST` | `/tasks/` | List / create tasks |
+| `GET` `PUT` `DELETE` | `/tasks/{id}` | Read / update / delete a task |
+| `GET` | `/dashboard/stats` | Product and task counts |
 
-```http
-# Authentication
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-POST /api/v1/auth/refresh
-GET  /api/v1/auth/me
-
-# Users
-GET    /api/v1/users
-POST   /api/v1/users
-GET    /api/v1/users/{id}
-PUT    /api/v1/users/{id}
-DELETE /api/v1/users/{id}
-
-# Products
-GET    /api/v1/products
-POST   /api/v1/products
-GET    /api/v1/products/{id}
-PUT    /api/v1/products/{id}
-DELETE /api/v1/products/{id}
-```
-
-## 🧪 Testing
+Example:
 
 ```bash
-# Run all tests
-pytest
+curl -X POST localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"ada@example.com","username":"ada","password":"s3cure-pass","full_name":"Ada Lovelace"}'
 
-# With coverage report
-pytest --cov=app --cov-report=html
+TOKEN=$(curl -s -X POST localhost:8000/api/v1/auth/login \
+  -d "username=ada@example.com&password=s3cure-pass" | jq -r .access_token)
 
-# Run specific test file
-pytest tests/unit/test_auth.py -v
-
-# Load testing
-python scripts/benchmark.py
+curl localhost:8000/api/v1/auth/me -H "Authorization: Bearer $TOKEN"
 ```
 
-## 🔒 Security Features
+## Testing
 
-- **JWT with refresh tokens** - Short-lived access tokens + long-lived refresh tokens
-- **Password hashing** - bcrypt with configurable work factor
-- **Rate limiting** - Redis-based, configurable per endpoint
-- **CORS protection** - Configurable allowed origins
-- **SQL injection protection** - SQLAlchemy ORM + parameterized queries
-- **XSS protection** - Pydantic validation + output encoding
-- **Secure headers** - Helmet.js equivalent for FastAPI
-- **Audit logging** - All critical operations logged
-
-## 📊 Monitoring & Observability
-
-- Prometheus metrics endpoint (`/metrics`)
-- Structured logging with request IDs
-- Health check endpoint (`/health`)
-- Performance profiling endpoints
-- Distributed tracing ready (OpenTelemetry)
-
-## 🐳 Docker Production Deployment
+Tests run against a real PostgreSQL database (`test_db`) and Redis, the same way CI does.
 
 ```bash
-# Build production image
-docker build -f docker/Dockerfile.prod -t management-api:latest .
-
-# Run with production config
-docker-compose -f docker-compose.prod.yml up -d
-
-# Scale API servers
-docker-compose -f docker-compose.prod.yml up -d --scale api=3
+docker compose up -d postgres redis
+docker compose exec postgres createdb -U postgres test_db
+poetry install
+poetry run pytest
 ```
 
-## 📈 Why This Project Stands Out
+Set `TEST_DATABASE_URL` to point the tests at a different database. CI starts Postgres and Redis as service containers and runs the suite with coverage on every push.
 
-This isn't just a basic CRUD API - it's a production-ready template that demonstrates:
+## Design decisions
 
-- **Security First Approach** - JWT with refresh tokens, rate limiting, secure headers
-- **Clean Architecture** - Separation of concerns (routes/services/repositories)
-- **Testing Excellence** - 95%+ coverage with meaningful tests
-- **DevOps Ready** - Complete Docker and CI/CD configuration
+- **Repository pattern.** Routes never build queries directly. A generic `BaseRepository` provides async CRUD, and specific repositories add queries like "products owned by user". That keeps the routes thin and the data access testable.
+- **Stateless JWTs plus a blacklist.** JWTs avoid a session lookup on every request, but they can't be revoked on their own. Storing only *revoked* tokens in Redis, with a TTL equal to the token lifetime, gives real logout while keeping the store small.
+- **Fail closed on auth.** If Redis is unreachable, the API returns `503` instead of accepting tokens it can't verify.
+- **Argon2 over bcrypt.** Argon2 is memory-hard, which makes GPU brute-forcing more expensive, and it won the Password Hashing Competition.
+- **Integration tests on real Postgres.** Running tests against SQLite would hide Postgres-specific behavior (enums, constraints, async driver quirks).
+
+## Tech stack
+
+FastAPI · Pydantic v2 · SQLAlchemy 2.0 (async) · asyncpg · PostgreSQL 15 · Redis 7 · Alembic · python-jose · passlib (Argon2) · pytest + httpx · Docker Compose · GitHub Actions
+
+## Roadmap
+
+- [ ] Rate limiting on login and registration (Redis sliding window)
+- [ ] Prometheus `/metrics` endpoint and structured request logging
+- [ ] Audit log writes for create/update/delete (model exists)
+- [ ] Unit tests for services and product/task endpoints
+- [ ] Production Dockerfile and Nginx reverse proxy
+- [ ] Load test results
+
+## License
+
+[MIT](LICENSE)
