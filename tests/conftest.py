@@ -47,6 +47,11 @@ async def db_session(engine) -> AsyncGenerator:
         await session.rollback()
         await session.close()
 
+    # Tests commit through the API, so wipe rows to keep each test independent
+    async with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
+
 @pytest_asyncio.fixture
 async def client(db_session) -> AsyncGenerator:
     async def override_get_db():
